@@ -42,6 +42,7 @@ let selectedCell = null;
 // ----------------------
 // UI ELEMENTS
 // ----------------------
+const ui = document.getElementById("ui");
 const createBtn = document.getElementById("createRoom");
 const joinBtn = document.getElementById("joinRoom");
 const codeInput = document.getElementById("roomCode");
@@ -120,7 +121,8 @@ lockBtn.onclick = () => {
     return;
   }
   locked = true;
-  db.ref(`rooms/${roomCode}/screens/${TAB_ID}`).update({
+
+  db.ref(`rooms/${roomCode}/screens/${TAB_ID}`).set({
     x: screenPos.x,
     y: screenPos.y,
     w: canvas.width,
@@ -140,24 +142,14 @@ function listenRoom(room) {
 
     screens = data.screens || {};
     dvd = data.dvd;
+
+    // Host election
     if (!data.host && Object.keys(screens).length) {
-      // Elect first tab as host
       const first = Object.keys(screens)[0];
       roomRef.update({ host: first });
     }
     isHost = data.host === TAB_ID;
   });
-
-  // Register own screen in room if locked
-  if (locked) {
-    db.ref(`rooms/${room}/screens/${TAB_ID}`).update({
-      x: screenPos.x,
-      y: screenPos.y,
-      w: canvas.width,
-      h: canvas.height,
-      locked: true
-    });
-  }
 }
 
 // ----------------------
@@ -170,7 +162,7 @@ function physicsLoop() {
   dvd.x += dvd.vx * dt;
   dvd.y += dvd.vy * dt;
 
-  // Calculate world bounds based on screens
+  // World bounds based on all screens
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   Object.values(screens).forEach(s => {
     minX = Math.min(minX, s.x * canvas.width);
@@ -182,36 +174,8 @@ function physicsLoop() {
   const worldW = maxX - minX;
   const worldH = maxY - minY;
 
-  // Bounce off world edges
   if (dvd.x <= 0 || dvd.x + dvd.w >= worldW) dvd.vx *= -1;
   if (dvd.y <= 0 || dvd.y + dvd.h >= worldH) dvd.vy *= -1;
-
-  // Only allow moving to overlapping screens
-  Object.values(screens).forEach(s => {
-    const screenLeft = s.x * canvas.width;
-    const screenTop = s.y * canvas.height;
-    const screenRight = screenLeft + s.w;
-    const screenBottom = screenTop + s.h;
-
-    if (
-      dvd.x < screenRight &&
-      dvd.x + dvd.w > screenLeft &&
-      dvd.y < screenBottom &&
-      dvd.y + dvd.h > screenTop
-    ) {
-      // DVD is inside this screen, no adjustment needed
-    } else {
-      // Hit screen edge, bounce
-      if (
-        dvd.x + dvd.w < screenLeft ||
-        dvd.x > screenRight
-      ) dvd.vx *= -1;
-      if (
-        dvd.y + dvd.h < screenTop ||
-        dvd.y > screenBottom
-      ) dvd.vy *= -1;
-    }
-  });
 
   db.ref(`rooms/${roomCode}/dvd`).set(dvd);
 }
@@ -250,4 +214,3 @@ function loop() {
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
-
