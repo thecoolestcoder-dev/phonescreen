@@ -1,24 +1,9 @@
-// ----------------------
-// FIREBASE CONFIG
-// ----------------------
-const firebaseConfig = {
-  apiKey: "AIzaSyDFFIM-hOCR8BHL9W_ji8NJwLZH0OleAQ0",
-  authDomain: "dvdlogothingy.firebaseapp.com",
-  databaseURL: "https://dvdlogothingy-default-rtdb.firebaseio.com",
-  projectId: "dvdlogothingy",
-  storageBucket: "dvdlogothingy.firebasestorage.app",
-  messagingSenderId: "203177996220",
-  appId: "1:203177996220:web:5d95399673795bd9da05b9"
-};
-
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
-
-// ----------------------
-// CANVAS SETUP
-// ----------------------
 const canvas = document.getElementById("screen");
 const ctx = canvas.getContext("2d");
+
+/* ======================
+   CANVAS
+   ====================== */
 
 function resize() {
   canvas.width = window.innerWidth;
@@ -27,37 +12,77 @@ function resize() {
 window.addEventListener("resize", resize);
 resize();
 
-// ----------------------
-// STATE
-// ----------------------
+/* ======================
+   STATE
+   ====================== */
+
 const TAB_ID = crypto.randomUUID();
 let roomCode = null;
 let isHost = false;
 let locked = false;
 let screenPos = { x: 0, y: 0 };
-let screens = {};
-let dvd = null;
-let selectedCell = null;
 
-// ----------------------
-// UI ELEMENTS
-// ----------------------
-const ui = document.getElementById("ui");
+/* ======================
+   UI ELEMENTS
+   ====================== */
+
 const createBtn = document.getElementById("createRoom");
 const joinBtn = document.getElementById("joinRoom");
 const codeInput = document.getElementById("roomCode");
 const grid = document.getElementById("grid");
 const lockBtn = document.getElementById("lock");
-const toggleUI = document.getElementById("toggleUI");
 
-toggleUI.onclick = () => {
-  ui.classList.toggle("hidden");
-  toggleUI.textContent = ui.classList.contains("hidden") ? "Show Panel" : "Hide Panel";
+/* ======================
+   CREATE ROOM
+   ====================== */
+
+createBtn.onclick = () => {
+  roomCode = Math.random().toString(36).slice(2, 6).toUpperCase();
+  isHost = true;
+
+  localStorage.setItem(
+    "room-" + roomCode,
+    JSON.stringify({
+      host: TAB_ID,
+      screens: {},
+      dvd: {
+        x: 100,
+        y: 100,
+        w: 120,
+        h: 60,
+        vx: 200,
+        vy: 150
+      }
+    })
+  );
+
+  codeInput.value = roomCode;
 };
 
-// ----------------------
-// MINI GRID
-// ----------------------
+/* ======================
+   JOIN ROOM
+   ====================== */
+
+joinBtn.onclick = () => {
+  const code = codeInput.value.trim().toUpperCase();
+  const data = localStorage.getItem("room-" + code);
+
+  if (!data) {
+    alert("Room not found");
+    return;
+  }
+
+  roomCode = code;
+  const room = JSON.parse(data);
+  isHost = room.host === TAB_ID;
+};
+
+/* ======================
+   MINI GRID
+   ====================== */
+
+let meCell = null;
+
 for (let y = -1; y <= 1; y++) {
   for (let x = -1; x <= 1; x++) {
     const cell = document.createElement("div");
@@ -67,9 +92,11 @@ for (let y = -1; y <= 1; y++) {
 
     cell.onclick = () => {
       if (locked) return;
-      if (selectedCell) selectedCell.classList.remove("me");
+
+      if (meCell) meCell.classList.remove("me");
       cell.classList.add("me");
-      selectedCell = cell;
+      meCell = cell;
+
       screenPos = { x, y };
     };
 
@@ -77,135 +104,92 @@ for (let y = -1; y <= 1; y++) {
   }
 }
 
-// ----------------------
-// CREATE ROOM
-// ----------------------
-createBtn.onclick = async () => {
-  roomCode = Math.random().toString(36).slice(2, 6).toUpperCase();
-  codeInput.value = roomCode;
-  isHost = true;
+/* ======================
+   LOCK POSITION
+   ====================== */
 
-  const roomRef = db.ref(`rooms/${roomCode}`);
-  await roomRef.set({
-    host: TAB_ID,
-    screens: {},
-    dvd: { x: 100, y: 100, w: 120, h: 60, vx: 200, vy: 150 }
-  });
-
-  listenRoom(roomCode);
-};
-
-// ----------------------
-// JOIN ROOM
-// ----------------------
-joinBtn.onclick = async () => {
-  roomCode = codeInput.value.trim().toUpperCase();
-  if (!roomCode) return;
-
-  const roomRef = db.ref(`rooms/${roomCode}`);
-  const snapshot = await roomRef.get();
-  if (!snapshot.exists()) {
-    alert("Room not found");
-    return;
-  }
-
-  listenRoom(roomCode);
-};
-
-// ----------------------
-// LOCK POSITION
-// ----------------------
 lockBtn.onclick = () => {
   if (!roomCode) {
     alert("Create or join a room first");
     return;
   }
   locked = true;
-
-  db.ref(`rooms/${roomCode}/screens/${TAB_ID}`).set({
-    x: screenPos.x,
-    y: screenPos.y,
-    w: canvas.width,
-    h: canvas.height,
-    locked: true
-  });
 };
 
-// ----------------------
-// LISTEN ROOM
-// ----------------------
-function listenRoom(room) {
-  const roomRef = db.ref(`rooms/${room}`);
-  roomRef.on("value", snapshot => {
-    const data = snapshot.val();
-    if (!data) return;
+/* ======================
+   MAIN LOOP
+   ====================== */
 
-    screens = data.screens || {};
-    dvd = data.dvd;
+let lastTime = performance.now();
 
-    // Host election
-    if (!data.host && Object.keys(screens).length) {
-      const first = Object.keys(screens)[0];
-      roomRef.update({ host: first });
-    }
-    isHost = data.host === TAB_ID;
-  });
-}
-
-// ----------------------
-// PHYSICS LOOP (HOST ONLY)
-// ----------------------
-function physicsLoop() {
-  if (!isHost || !dvd || !roomCode) return;
-
-  const dt = 1 / 60;
-  dvd.x += dvd.vx * dt;
-  dvd.y += dvd.vy * dt;
-
-  // World bounds based on all screens
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  Object.values(screens).forEach(s => {
-    minX = Math.min(minX, s.x * canvas.width);
-    minY = Math.min(minY, s.y * canvas.height);
-    maxX = Math.max(maxX, s.x * canvas.width + s.w);
-    maxY = Math.max(maxY, s.y * canvas.height + s.h);
-  });
-
-  const worldW = maxX - minX;
-  const worldH = maxY - minY;
-
-  if (dvd.x <= 0 || dvd.x + dvd.w >= worldW) dvd.vx *= -1;
-  if (dvd.y <= 0 || dvd.y + dvd.h >= worldH) dvd.vy *= -1;
-
-  db.ref(`rooms/${roomCode}/dvd`).set(dvd);
-}
-setInterval(physicsLoop, 1000 / 60);
-
-// ----------------------
-// RENDER LOOP
-// ----------------------
-function loop() {
+function loop(time) {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  if (!dvd || !screens[TAB_ID]) {
+
+  if (!roomCode || !locked) {
     requestAnimationFrame(loop);
     return;
   }
 
-  const s = screens[TAB_ID];
-  const worldOffsetX = s.x * canvas.width;
-  const worldOffsetY = s.y * canvas.height;
+  const roomKey = "room-" + roomCode;
+  const room = JSON.parse(localStorage.getItem(roomKey));
 
-  const localX = dvd.x - worldOffsetX;
-  const localY = dvd.y - worldOffsetY;
+  /* Register screen */
+  room.screens[TAB_ID] = {
+    x: screenPos.x,
+    y: screenPos.y,
+    w: canvas.width,
+    h: canvas.height
+  };
+
+  /* Calculate world bounds */
+  let minX = 0, minY = 0, maxX = 0, maxY = 0;
+
+  Object.values(room.screens).forEach(s => {
+    minX = Math.min(minX, s.x);
+    minY = Math.min(minY, s.y);
+    maxX = Math.max(maxX, s.x + 1);
+    maxY = Math.max(maxY, s.y + 1);
+  });
+
+  const world = {
+    w: (maxX - minX) * canvas.width,
+    h: (maxY - minY) * canvas.height,
+    ox: -minX * canvas.width,
+    oy: -minY * canvas.height
+  };
+
+  /* Host updates DVD */
+  if (isHost) {
+    const dt = (time - lastTime) / 1000;
+    lastTime = time;
+
+    room.dvd.x += room.dvd.vx * dt;
+    room.dvd.y += room.dvd.vy * dt;
+
+    if (room.dvd.x <= 0 || room.dvd.x + room.dvd.w >= world.w)
+      room.dvd.vx *= -1;
+
+    if (room.dvd.y <= 0 || room.dvd.y + room.dvd.h >= world.h)
+      room.dvd.vy *= -1;
+  }
+
+  localStorage.setItem(roomKey, JSON.stringify(room));
+
+  /* Render DVD */
+  const localX =
+    room.dvd.x - (screenPos.x * canvas.width + world.ox);
+  const localY =
+    room.dvd.y - (screenPos.y * canvas.height + world.oy);
 
   if (
-    localX + dvd.w > 0 &&
+    localX + room.dvd.w > 0 &&
     localX < canvas.width &&
-    localY + dvd.h > 0 &&
+    localY + room.dvd.h > 0 &&
     localY < canvas.height
   ) {
     ctx.fillStyle = "white";
-    ctx.fillRect(localX, localY, dvd.w, dvd.h);
+    ctx.fillRect(localX, localY, room.dvd.w, room.dvd.h);
+
     ctx.fillStyle = "black";
     ctx.font = "20px Arial";
     ctx.fillText("DVD", localX + 35, localY + 38);
@@ -213,4 +197,5 @@ function loop() {
 
   requestAnimationFrame(loop);
 }
+
 requestAnimationFrame(loop);
