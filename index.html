@@ -1,32 +1,29 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, user-scalable=no"
-    />
-    <title>DVD Wall</title>
-    <link rel="stylesheet" href="./style.css" />
-  </head>
-  <body>
-    <div id="ui">
-      <div class="row">
-        <button id="createRoom">Host</button>
-        <input id="roomCode" placeholder="Code" maxlength="4" />
-        <button id="joinRoom">Join</button>
-      </div>
+<head>
+  <meta charset="UTF-8" />
+  <title>DVD Wall</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
 
-      <div id="grid"></div>
-      <button id="lock" class="full-btn">Lock & Start</button>
-      <div id="status">Waiting...</div>
-    </div>
+<button id="toggleUI">Hide Panel</button>
 
-    <canvas id="screen"></canvas>
+<div id="ui">
+  <button id="createRoom">Create Room</button>
+  <input id="roomCode" placeholder="Room code" />
+  <button id="joinRoom">Join</button>
 
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+  <div id="grid"></div>
+  <button id="lock">Lock Position</button>
+</div>
 
-    <script src="./main.js"></script>
-  </body>
+<canvas id="screen"></canvas>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/10.15.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.15.0/firebase-database-compat.js"></script>
+
+<script src="./main.js"></script>
+</body>
 </html>
