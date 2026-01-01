@@ -7,23 +7,20 @@
 </head>
 <body>
 
-<button id="toggleUI">Hide Panel</button>
+  <div id="ui">
+    <button id="createRoom">Create Room</button>
+    <input id="roomCode" placeholder="Room code" />
+    <button id="joinRoom">Join</button>
 
-<div id="ui">
-  <button id="createRoom">Create Room</button>
-  <input id="roomCode" placeholder="Room code" />
-  <button id="joinRoom">Join</button>
+    <div id="grid"></div>
+    <button id="lock">Lock Position</button>
+  </div>
 
-  <div id="grid"></div>
-  <button id="lock">Lock Position</button>
-</div>
+  <canvas id="screen"></canvas>
 
-<canvas id="screen"></canvas>
-
-<!-- Firebase -->
-<script src="https://www.gstatic.com/firebasejs/10.15.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.15.0/firebase-database-compat.js"></script>
-
-<script src="./main.js"></script>
+  <script src="./main.js"></script>
 </body>
 </html>
+>
+</html>
+
